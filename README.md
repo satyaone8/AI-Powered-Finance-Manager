@@ -24,15 +24,6 @@ This app helps users track expenses, manage income, and gain financial insights 
 - **JavaScript (Vanilla JS)** – Functionality & Logic
 - **Local Storage API** – Data persistence
 
----
-
-## 📂 Project Structure
-
-├── index.html
-├── style.css
-├── script.js
-└── README.md
-
 
 ---
 
