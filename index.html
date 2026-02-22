@@ -1,0 +1,1029 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Powered Finance Manager</title>
+  <meta name="description" content="A single‑file, offline‑ready personal finance dashboard with budgets, charts, CSV import/export, and localStorage." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js for charts (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg: #0b0f17;          /* base background */
+      --panel: #111827;       /* cards/panels */
+      --panel-2:#0f172a;      /* darker */
+      --text: #e5e7eb;        /* primary text */
+      --muted:#94a3b8;        /* secondary text */
+      --accent:#7c3aed;       /* purple */
+      --accent-2:#22d3ee;     /* cyan */
+      --danger:#ef4444;       /* red */
+      --success:#10b981;      /* green */
+      --warning:#f59e0b;      /* amber */
+      --border:#1f2937;       /* borders */
+    }
+    *{ box-sizing: border-box }
+    html,body{ height:100% }
+    body{
+      margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:linear-gradient(180deg, #05070c, var(--bg)); color:var(--text);
+    }
+    .container{ max-width:1200px; margin:0 auto; padding:24px }
+    header{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0 20px 0;
+    }
+    .brand{ display:flex; align-items:center; gap:12px; }
+    .logo{
+      width:40px; height:40px; border-radius:12px; background: radial-gradient(circle at 30% 30%, var(--accent), var(--accent-2)); box-shadow: 0 0 24px rgba(124,58,237,.35);
+    }
+    h1{ font-size: clamp(1.25rem, 2vw + .5rem, 1.8rem); margin:0; letter-spacing:.2px }
+    .muted{ color:var(--muted) }
+
+    .toolbar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center }
+    .btn{ appearance:none; border:1px solid var(--border); background:linear-gradient(180deg, #0e1421, var(--panel)); color:var(--text); padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600; transition: .15s ease transform, .15s ease box-shadow; }
+    .btn:hover{ transform: translateY(-1px); box-shadow:0 8px 20px rgba(0,0,0,.25) }
+    .btn.primary{ background:linear-gradient(180deg, #5926db, #4c1d95); border-color:#5b21b6 }
+    .btn.danger{ border-color:#7f1d1d; background:linear-gradient(180deg, #7f1d1d, #3f0f0f)}
+    .btn.ghost{ background:transparent }
+
+    .grid{ display:grid; gap:16px }
+    .grid.cols-4{ grid-template-columns: repeat(4, minmax(0,1fr)) }
+    .grid.cols-3{ grid-template-columns: repeat(3, minmax(0,1fr)) }
+    .grid.cols-2{ grid-template-columns: repeat(2, minmax(0,1fr)) }
+    @media (max-width: 1000px){ .grid.cols-4{ grid-template-columns: repeat(2, minmax(0,1fr)) } }
+    @media (max-width: 640px){ .grid.cols-4, .grid.cols-3, .grid.cols-2{ grid-template-columns: 1fr } header{ flex-direction:column; align-items:flex-start } }
+
+    .card{ background: linear-gradient(180deg, var(--panel), var(--panel-2)); border: 1px solid var(--border); border-radius: 16px; padding:16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.02), 0 20px 40px rgba(0,0,0,.15); }
+    .card h3{ margin:.25rem 0 .5rem 0 }
+
+    .kpis{ display:flex; gap:12px; align-items:center; justify-content:space-between }
+    .kpis .value{ font-size:clamp(1.25rem, 1.6vw + .7rem, 2rem); font-weight:800 }
+    .kpis .sub{ color:var(--muted); font-size:.9rem }
+
+    .row{ display:flex; gap:12px; flex-wrap:wrap }
+    .row > *{ flex:1 1 240px }
+
+    label{ display:block; font-weight:600; margin:8px 0 6px 2px }
+    input, select, textarea{ width:100%; background:#0b1220; color:var(--text); border:1px solid var(--border); border-radius:12px; padding:10px 12px; outline:none; transition:border .2s ease; }
+    input:focus, select:focus, textarea:focus{ border-color:#334155 }
+    input[type="date"]{ padding:8px 12px }
+
+    table{ width:100%; border-collapse: collapse; }
+    th, td{ padding:12px; text-align:left; border-bottom:1px solid var(--border) }
+    th{ color:var(--muted); font-weight:600; text-transform:uppercase; font-size:.75rem; letter-spacing:.04em }
+    tr:hover td{ background:#0b1220 }
+    .pill{ padding:4px 10px; border-radius:999px; font-size:.8rem; border:1px solid var(--border); background:#0b1220 }
+
+    .footer{ color:var(--muted); text-align:center; margin:28px 0 10px 0; font-size:.9rem }
+
+    .progress{ height:8px; background:#0b1220; border-radius:999px; overflow:hidden; border:1px solid var(--border)}
+    .progress > span{ display:block; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-2)); width:0 }
+
+    .chips{ display:flex; gap:8px; flex-wrap: wrap }
+    .chip{ border:1px solid var(--border); background:#0b1220; color:var(--text); padding:8px 10px; border-radius:999px; cursor:pointer; font-size:.9rem }
+    .chip.active{ background:linear-gradient(180deg, #1e293b, #0b1220); box-shadow: inset 0 1px 0 rgba(255,255,255,.03) }
+
+    .search{ display:flex; gap:8px }
+
+    /* Auth overlay styles */
+    #authOverlay {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg, rgba(2,6,23,0.6), rgba(2,6,23,0.75)); z-index:60;
+    }
+    #authPanel { width:420px; max-width:94%; padding:20px; border-radius:14px; }
+    #authPanel h2{ margin:0 0 8px 0 }
+    .authRow{ display:grid; gap:8px; margin-top:8px }
+    .authSwitch{ display:flex; gap:6px; margin-bottom:8px }
+    .small{ font-size:.9rem; color:var(--muted) }
+    #userBtn{ min-width:140px; text-align:left }
+  </style>
+</head>
+<body>
+  <!-- AUTH OVERLAY -->
+  <div id="authOverlay" aria-hidden="false">
+    <div id="authPanel" class="card">
+      <div class="authSwitch">
+        <button id="showLogin" class="btn primary">Login</button>
+        <button id="showSignup" class="btn">Create Account</button>
+      </div>
+
+      <div id="loginForm" style="display:block">
+        <h2>Welcome back</h2>
+        <div class="small">Sign in to your account to access your finance dashboard.</div>
+        <div class="authRow">
+          <label>Email</label>
+          <input id="loginEmail" type="email" placeholder="you@example.com" />
+          <label>Password</label>
+          <input id="loginPassword" type="password" placeholder="Password" />
+          <div style="display:flex; gap:8px">
+            <button id="btnLogin" class="btn primary">Sign in</button>
+            <button id="btnDemo" class="btn ghost">Demo</button>
+          </div>
+          <div class="small">No account? <a href="#" id="toSignup">create one</a></div>
+          <div id="authMsg" class="small muted"></div>
+        </div>
+      </div>
+
+      <div id="signupForm" style="display:none">
+        <h2>Create account</h2>
+        <div class="small">Register an account stored locally in your browser.</div>
+        <div class="authRow">
+          <label>Full name</label>
+          <input id="suName" type="text" placeholder="Your name" />
+          <label>Email</label>
+          <input id="suEmail" type="email" placeholder="you@example.com" />
+          <label>Password</label>
+          <input id="suPassword" type="password" placeholder="Password (min 6)" />
+          <label>Confirm</label>
+          <input id="suPassword2" type="password" placeholder="Confirm password" />
+          <div style="display:flex; gap:8px">
+            <button id="btnSignup" class="btn primary">Create</button>
+            <button id="btnCancelSignup" class="btn ghost">Cancel</button>
+          </div>
+          <div class="small">Already registered? <a href="#" id="toLogin">login</a></div>
+          <div id="signupMsg" class="small muted"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" id="mainApp" style="display:none">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>AI Powered Finance Manager</h1>
+          <div class="muted">Track expenses, set budgets, and visualize your money — all in your browser.</div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button id="toggleTheme" class="btn">🌙 Dark</button>
+        <button id="exportCsv" class="btn">⬇️ Export CSV</button>
+        <label class="btn ghost" for="importCsvInput" style="cursor:pointer;">⬆️ Import CSV</label>
+        <input id="importCsvInput" type="file" accept=".csv" hidden />
+        <button id="resetAll" class="btn danger">🗑 Reset</button>
+        <button id="userBtn" class="btn ghost">👤 <span id="userName">Account</span> ▾</button>
+      </div>
+    </header>
+
+    <!-- KPI Cards -->
+    <section class="grid cols-4" aria-label="Key metrics">
+      <div class="card">
+        <div class="kpis">
+          <div>
+            <div class="muted">Current Balance</div>
+            <div id="kpi-balance" class="value">₹0</div>
+          </div>
+          <span class="pill">Net</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="kpis">
+          <div>
+            <div class="muted">This Month Income</div>
+            <div id="kpi-income" class="value">₹0</div>
+          </div>
+          <span class="pill" style="border-color:#064e3b;color:#a7f3d0">↑</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="kpis">
+          <div>
+            <div class="muted">This Month Expenses</div>
+            <div id="kpi-expense" class="value">₹0</div>
+          </div>
+          <span class="pill" style="border-color:#7f1d1d;color:#fecaca">↓</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="kpis">
+          <div>
+            <div class="muted">Savings Rate</div>
+            <div id="kpi-sr" class="value">0%</div>
+          </div>
+          <span class="pill" style="border-color:#4338ca;color:#c7d2fe">⚡</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add Transaction + Filters -->
+    <section class="grid cols-2" style="margin-top:16px">
+      <div class="card" aria-label="Add transaction">
+        <h3>➕ Add Transaction</h3>
+        <div class="row">
+          <div>
+            <label>Type</label>
+            <div class="chips" id="typeChips">
+              <button class="chip active" data-type="income">Income</button>
+              <button class="chip" data-type="expense">Expense</button>
+            </div>
+          </div>
+          <div>
+            <label>Amount (₹)</label>
+            <input id="amount" type="number" step="0.01" min="0" placeholder="e.g., 499" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Category</label>
+            <select id="category"></select>
+          </div>
+          <div>
+            <label>Date</label>
+            <input id="date" type="date" />
+          </div>
+        </div>
+        <div>
+          <label>Notes</label>
+          <input id="notes" type="text" placeholder="Optional description" />
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px">
+          <button id="addBtn" class="btn primary">Add</button>
+          <button id="clearForm" class="btn">Clear</button>
+        </div>
+      </div>
+
+      <div class="card" aria-label="Filters & search">
+        <h3>🔎 Filter & Search</h3>
+        <div class="row">
+          <div>
+            <label>From</label>
+            <input id="fromDate" type="date" />
+          </div>
+          <div>
+            <label>To</label>
+            <input id="toDate" type="date" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Income Category</label>
+            <select id="filterCategoryIncome"></select>
+          </div>
+          <div>
+            <label>Expense Category</label>
+            <select id="filterCategoryExpense"></select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Search notes</label>
+            <input id="searchText" type="text" placeholder="e.g., rent, salary" />
+          </div>
+          <div>
+            <label>Quick search</label>
+            <input id="quickSearch" type="text" placeholder="e.g., 499 or rent" />
+          </div>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px">
+          <button id="applyFilters" class="btn">Apply</button>
+          <button id="clearFilters" class="btn ghost">Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Budgets & Charts -->
+    <section class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3>🎯 Monthly Budgets</h3>
+        <div id="budgets"></div>
+      </div>
+      <div class="card">
+        <h3>📈 Analytics</h3>
+        <div class="row">
+          <div style="min-height:260px"><canvas id="catChart"></canvas></div>
+          <div style="min-height:260px"><canvas id="flowChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+   <script>
+// ===============================
+//  Naive Bayes Expense Predictor
+// ===============================
+
+// Parse CSV (month,amount)
+function parseCSV(text) {
+  return text
+    .trim()
+    .split("\n")
+    .map(line => {
+      const [month, amount] = line.split(",");
+      return { month, amount: Number(amount) };
+    });
+}
+
+// Create dataset with labels: increase / similar / decrease
+function prepareTraining(data) {
+  const training = [];
+  for (let i = 1; i < data.length; i++) {
+    const prev = data[i - 1].amount;
+    const curr = data[i].amount;
+    let label = "similar";
+
+    if (curr > prev + 500) label = "increase";
+    else if (curr < prev - 500) label = "decrease";
+
+    training.push({ value: curr, label });
+  }
+  return training;
+}
+
+// Compute mean & variance
+function mean(arr) {
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+function variance(arr, avg) {
+  return arr.reduce((a, b) => a + (b - avg) ** 2, 0) / arr.length;
+}
+
+// Train Gaussian Naive Bayes
+function trainNaiveBayes(training) {
+  const classes = ["increase", "similar", "decrease"];
+  const model = {};
+
+  classes.forEach(cls => {
+    const values = training.filter(t => t.label === cls).map(t => t.value);
+
+    if (values.length > 0) {
+      const m = mean(values);
+      const v = variance(values, m) || 1;
+      model[cls] = { mean: m, variance: v, prior: values.length / training.length };
+    } else {
+      model[cls] = { mean: 0, variance: 1, prior: 0.001 };
+    }
+  });
+
+  return model;
+}
+
+// Gaussian PDF
+function gaussianPDF(x, mean, variance) {
+  return (
+    (1 / Math.sqrt(2 * Math.PI * variance)) *
+    Math.exp(-((x - mean) ** 2) / (2 * variance))
+  );
+}
+
+// Predict next month
+function predictNext(model, lastAmount) {
+  let bestClass = null;
+  let bestProb = -Infinity;
+
+  for (const cls in model) {
+    const { mean, variance, prior } = model[cls];
+    const prob = Math.log(gaussianPDF(lastAmount, mean, variance)) + Math.log(prior);
+
+    if (prob > bestProb) {
+      bestProb = prob;
+      bestClass = cls;
+    }
+  }
+
+  // Estimate next month’s amount
+  let estimate = model[bestClass].mean;
+
+  return { trend: bestClass, estimate: Math.round(estimate) };
+}
+
+// ========================
+// Button Functionality
+// ========================
+
+ document.getElementById("nbTrain").onclick = function () {
+  const raw = document.getElementById("nbData").value;
+  const data = parseCSV(raw);
+  window.nbTrainingData = prepareTraining(data);
+  window.nbModel = trainNaiveBayes(window.nbTrainingData);
+
+  document.getElementById("nbResult").innerHTML =
+    "📘 Model trained successfully! (" + window.nbTrainingData.length + " samples)";
+};
+
+document.getElementById("nbPredict").onclick = function () {
+  if (!window.nbModel) {
+    return (document.getElementById("nbResult").innerHTML =
+      "⚠️ Train the model first.");
+  }
+
+  const raw = document.getElementById("nbData").value;
+  const data = parseCSV(raw);
+  const last = data[data.length - 1].amount;
+
+  const result = predictNext(window.nbModel, last);
+
+  const emoji =
+    result.trend === "increase" ? "📈" :
+    result.trend === "decrease" ? "📉" : "➖";
+
+  document.getElementById("nbResult").innerHTML =
+    `${emoji} <b>Prediction:</b> ${result.trend.toUpperCase()}<br>
+     💰 <b>Estimated Next Month Expense:</b> ₹${result.estimate}`;
+};
+
+document.getElementById("nbClear").onclick = function () {
+  document.getElementById("nbResult").innerHTML = "";
+  window.nbModel = null;
+};
+
+</script>
+
+
+    <!-- Transactions Table -->
+    <section class="card" style="margin-top:16px">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap">
+        <h3>📒 Transactions</h3>
+        <div class="search">
+          <input id="quickSearch" placeholder="Quick search…" />
+          <button id="deleteSelected" class="btn">Delete Selected</button>
+        </div>
+      </div>
+      <div style="overflow:auto; margin-top:8px">
+        <table id="txTable" aria-label="Transactions table">
+          <thead>
+            <tr>
+              <th><input id="checkAll" type="checkbox" /></th>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Category</th>
+              <th>Amount</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="footer">Data is stored locally in your browser (localStorage). No server needed.</p>
+  </div>
+
+  <script>
+  // -------- Auth & simple user management (localStorage) --------
+  const USERS_KEY = 'apfm_users_v1';
+  const CUR_USER_KEY = 'apfm_current_user';
+
+  async function sha256Hex(text){
+    const data = new TextEncoder().encode(text);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  function loadUsers(){ return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); }
+  function saveUsers(u){ localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+  function getCurrentUser(){ return JSON.parse(localStorage.getItem(CUR_USER_KEY) || 'null'); }
+  function setCurrentUser(u){ localStorage.setItem(CUR_USER_KEY, JSON.stringify(u)); }
+  function clearCurrentUser(){ localStorage.removeItem(CUR_USER_KEY); }
+
+  // DOM refs for auth
+  const auth = {
+    overlay: document.getElementById('authOverlay'),
+    panel: document.getElementById('authPanel'),
+    showLogin: document.getElementById('showLogin'),
+    showSignup: document.getElementById('showSignup'),
+    loginForm: document.getElementById('loginForm'),
+    signupForm: document.getElementById('signupForm'),
+    loginEmail: document.getElementById('loginEmail'),
+    loginPassword: document.getElementById('loginPassword'),
+    btnLogin: document.getElementById('btnLogin'),
+    btnDemo: document.getElementById('btnDemo'),
+    toSignup: document.getElementById('toSignup'),
+    toLogin: document.getElementById('toLogin'),
+    suName: document.getElementById('suName'),
+    suEmail: document.getElementById('suEmail'),
+    suPassword: document.getElementById('suPassword'),
+    suPassword2: document.getElementById('suPassword2'),
+    btnSignup: document.getElementById('btnSignup'),
+    btnCancelSignup: document.getElementById('btnCancelSignup'),
+    authMsg: document.getElementById('authMsg'),
+    signupMsg: document.getElementById('signupMsg'),
+    mainApp: document.getElementById('mainApp'),
+    userBtn: document.getElementById('userBtn'),
+    userNameEl: document.getElementById('userName'),
+  };
+
+  function showLoginUI(){ auth.loginForm.style.display='block'; auth.signupForm.style.display='none'; auth.authMsg.textContent=''; auth.signupMsg.textContent=''; }
+  function showSignupUI(){ auth.loginForm.style.display='none'; auth.signupForm.style.display='block'; auth.authMsg.textContent=''; auth.signupMsg.textContent=''; }
+
+  auth.showLogin.addEventListener('click', showLoginUI);
+  auth.showSignup.addEventListener('click', showSignupUI);
+  auth.toSignup.addEventListener('click', (e)=>{ e.preventDefault(); showSignupUI(); });
+  auth.toLogin.addEventListener('click', (e)=>{ e.preventDefault(); showLoginUI(); });
+  auth.btnCancelSignup.addEventListener('click', (e)=>{ e.preventDefault(); showLoginUI(); });
+
+  auth.btnDemo.addEventListener('click', async ()=>{
+    // populate demo user & demo transactions
+    const demoEmail = 'demo@local';
+    const users = loadUsers();
+    let user = users.find(u=>u.email===demoEmail);
+    if(!user){
+      const hash = await sha256Hex('demo123');
+      user = { id: 'u_demo', name: 'Demo', email: demoEmail, passwordHash: hash };
+      users.push(user); saveUsers(users);
+      // add demo data into app storage (only if no transactions exist)
+      const s = JSON.parse(localStorage.getItem('apfm__v1')||'null');
+      if(!s || (s && (!s.transactions || s.transactions.length===0))){
+        localStorage.removeItem('apfm__v1'); // ensure defaults will be created
+      }
+    }
+    setCurrentUser({ id:user.id, name:user.name, email:user.email });
+    await onAuthSuccess();
+  });
+
+  auth.btnSignup.addEventListener('click', async ()=>{
+    const name = auth.suName.value.trim();
+    const email = (auth.suEmail.value || '').trim().toLowerCase();
+    const pw = auth.suPassword.value;
+    const pw2 = auth.suPassword2.value;
+    if(!name || !email || !pw){ auth.signupMsg.textContent='Fill all fields'; return; }
+    if(pw.length < 6){ auth.signupMsg.textContent='Password must be 6+ chars'; return; }
+    if(pw !== pw2){ auth.signupMsg.textContent='Passwords do not match'; return; }
+    const users = loadUsers();
+    if(users.some(u=>u.email===email)){ auth.signupMsg.textContent='Email already registered'; return; }
+    const hash = await sha256Hex(pw);
+    const id = 'u_' + Math.random().toString(36).slice(2,9);
+    const user = { id, name, email, passwordHash: hash };
+    users.push(user); saveUsers(users);
+    setCurrentUser({ id:user.id, name:user.name, email:user.email });
+    await onAuthSuccess();
+  });
+
+  auth.btnLogin.addEventListener('click', async ()=>{
+    const email = (auth.loginEmail.value || '').trim().toLowerCase();
+    const pw = auth.loginPassword.value || '';
+    if(!email || !pw){ auth.authMsg.textContent = 'Enter email and password'; return; }
+    const users = loadUsers();
+    const user = users.find(u=>u.email===email);
+    if(!user){ auth.authMsg.textContent = 'No account found'; return; }
+    const hash = await sha256Hex(pw);
+    if(hash !== user.passwordHash){ auth.authMsg.textContent = 'Invalid password'; return; }
+    setCurrentUser({ id:user.id, name:user.name, email:user.email });
+    await onAuthSuccess();
+  });
+
+  async function onAuthSuccess(){
+    auth.overlay.style.display = 'none';
+    auth.mainApp.style.display = 'block';
+    const u = getCurrentUser();
+    auth.userNameEl.textContent = u?.name || 'Account';
+    // initialize main app after auth
+    initApp();
+  }
+
+  // If already logged in, skip login overlay
+  (function checkAutoLogin(){
+    const u = getCurrentUser();
+    if(u){
+      auth.overlay.style.display = 'none';
+      auth.mainApp.style.display = 'block';
+      auth.userNameEl.textContent = u.name;
+      // initialize main app after small delay to ensure DOM available
+      setTimeout(initApp, 50);
+    }
+  })();
+
+  // Logout handling in toolbar
+  auth.userBtn.addEventListener('click', ()=>{
+    const u = getCurrentUser();
+    if(!u) return;
+    const choice = confirm('Sign out?');
+    if(choice){
+      clearCurrentUser();
+      location.reload();
+    }
+  });
+
+  // -------- Utilities & existing app logic --------
+  const fmt = new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits: 2 });
+  const todayISO = () => new Date().toISOString().slice(0,10);
+  const uid = () => Math.random().toString(36).slice(2,9);
+
+  // -------- Persistent State --------
+  const STORAGE_KEY = 'apfm__v1';
+  const DEFAULT_CATEGORIES = [
+    { id:'salary', name:'Salary', type:'income', color:'#10b981' },
+    { id:'freelance', name:'Freelance', type:'income', color:'#22d3ee' },
+    { id:'invest', name:'Investments', type:'income', color:'#7c3aed' },
+
+    { id:'rent', name:'Rent', type:'expense', color:'#ef4444', budget:15000 },
+    { id:'food', name:'Food', type:'expense', color:'#f59e0b', budget:6000 },
+    { id:'transport', name:'Transport', type:'expense', color:'#3b82f6', budget:3000 },
+    { id:'bills', name:'Bills', type:'expense', color:'#8b5cf6', budget:4000 },
+    { id:'shopping', name:'Shopping', type:'expense', color:'#ec4899', budget:5000 },
+    { id:'others', name:'Others', type:'expense', color:'#ec4899', budget:10000 },
+  ];
+
+  const State = {
+    theme: 'dark',
+    categories: [],
+    transactions: [], // {id, type, categoryId, amount, date, notes}
+  };
+
+  function load(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw){
+      State.categories = DEFAULT_CATEGORIES;
+      State.transactions = [];
+      State.theme = 'dark';
+      save();
+    } else {
+      const parsed = JSON.parse(raw);
+      Object.assign(State, parsed);
+    }
+  }
+  function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(State)); }
+
+  // -------- DOM Refs --------
+  const els = {
+    // kpis
+    kpiBalance: document.getElementById('kpi-balance'),
+    kpiIncome: document.getElementById('kpi-income'),
+    kpiExpense: document.getElementById('kpi-expense'),
+    kpiSR: document.getElementById('kpi-sr'),
+    // form
+    chips: document.getElementById('typeChips'),
+    amount: document.getElementById('amount'),
+    category: document.getElementById('category'),
+    date: document.getElementById('date'),
+    notes: document.getElementById('notes'),
+    addBtn: document.getElementById('addBtn'),
+    clearForm: document.getElementById('clearForm'),
+    // filters
+    fromDate: document.getElementById('fromDate'),
+    toDate: document.getElementById('toDate'),
+    filterCategoryIncome: document.getElementById('filterCategoryIncome'),
+    filterCategoryExpense: document.getElementById('filterCategoryExpense'),
+    searchText: document.getElementById('searchText'),
+    applyFilters: document.getElementById('applyFilters'),
+    clearFilters: document.getElementById('clearFilters'),
+    quickSearch: document.querySelectorAll('#quickSearch')[0],
+    // table
+    table: document.getElementById('txTable'),
+    tbody: document.querySelector('#txTable tbody'),
+    checkAll: document.getElementById('checkAll'),
+    deleteSelected: document.getElementById('deleteSelected'),
+    // budgets
+    budgets: document.getElementById('budgets'),
+    // charts
+    catChart: document.getElementById('catChart'),
+    flowChart: document.getElementById('flowChart'),
+    // header toolbar
+    toggleTheme: document.getElementById('toggleTheme'),
+    exportCsv: document.getElementById('exportCsv'),
+    importCsvInput: document.getElementById('importCsvInput'),
+    resetAll: document.getElementById('resetAll'),
+  };
+
+  // -------- Theme --------
+  function applyTheme(){
+    document.body.dataset.theme = State.theme;
+    document.querySelector('#toggleTheme').textContent = State.theme === 'dark' ? '🌙 Dark' : '☀️ Light';
+  }
+  document.getElementById('toggleTheme').addEventListener('click', ()=>{ State.theme = State.theme === 'dark' ? 'light' : 'dark'; applyTheme(); save(); });
+
+  // -------- Categories UI --------
+  function refreshCategorySelects(){
+    const type = currentType();
+    const cats = State.categories.filter(c => c.type === type);
+    els.category.innerHTML = cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+
+    // populate income and expense filter selects separately
+    const incomeCats = State.categories.filter(c=> c.type==='income');
+    const expenseCats = State.categories.filter(c=> c.type==='expense');
+    els.filterCategoryIncome.innerHTML = '<option value="">All income</option>' + incomeCats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    els.filterCategoryExpense.innerHTML = '<option value="">All expense</option>' + expenseCats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  }
+
+  function currentType(){
+    const active = els.chips.querySelector('.chip.active');
+    return active?.dataset.type || 'income';
+  }
+  els.chips.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.chip');
+    if(!btn) return;
+    els.chips.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active');
+    refreshCategorySelects();
+  });
+
+  // -------- Form Actions --------
+  function clearForm(){
+    els.amount.value = '';
+    els.notes.value = '';
+    els.date.value = todayISO();
+    els.amount.focus();
+  }
+
+  function addTransaction(){
+    const type = currentType();
+    const amount = parseFloat(els.amount.value || '0');
+    const categoryId = els.category.value;
+    const date = els.date.value || todayISO();
+    const notes = els.notes.value.trim();
+
+    if(!amount || amount <= 0) return alert('Enter a valid amount');
+    if(!categoryId) return alert('Choose a category');
+
+    State.transactions.push({ id: uid(), type, categoryId, amount, date, notes });
+    save();
+    clearForm();
+    render();
+  }
+
+  els.addBtn.addEventListener('click', addTransaction);
+  els.clearForm.addEventListener('click', clearForm);
+
+  // -------- Filters --------
+  function gatherFilters(){
+    return {
+      from: els.fromDate.value || null,
+      to: els.toDate.value || null,
+      categoryIncome: els.filterCategoryIncome.value || null,
+      categoryExpense: els.filterCategoryExpense.value || null,
+      text: (els.searchText.value || '').toLowerCase(),
+      q: (document.querySelectorAll('#quickSearch')[1]?.value || '').toLowerCase(),
+    };
+  }
+
+  function matchesFilters(tx, f){
+    if(f.from && tx.date < f.from) return false;
+    if(f.to && tx.date > f.to) return false;
+
+    // If an income category selected, require tx to be income and match that category
+    if(f.categoryIncome && f.categoryIncome !== '' ){
+      if(tx.type !== 'income' || tx.categoryId !== f.categoryIncome) return false;
+    }
+    // If an expense category selected, require tx to be expense and match that category
+    if(f.categoryExpense && f.categoryExpense !== '' ){
+      if(tx.type !== 'expense' || tx.categoryId !== f.categoryExpense) return false;
+    }
+
+    const note = (tx.notes || '').toLowerCase();
+    if(f.text && !note.includes(f.text)) return false;
+    if(f.q && !(note.includes(f.q) || formatAmount(tx.amount).includes(f.q))) return false;
+    return true;
+  }
+
+  document.getElementById('applyFilters').addEventListener('click', renderTable);
+  document.getElementById('clearFilters').addEventListener('click', ()=>{
+    els.fromDate.value = els.toDate.value = '';
+    els.filterCategoryIncome.value = '';
+    els.filterCategoryExpense.value = '';
+    els.searchText.value = '';
+    render();
+  });
+  // quickSearch (table) second input
+  document.querySelectorAll('#quickSearch')[1].addEventListener('input', renderTable);
+
+  // -------- Table --------
+  function formatAmount(a){ return fmt.format(a).replace('₹\u00a0', '₹'); }
+
+  function renderTable(){
+    const f = gatherFilters();
+    const rows = State.transactions
+      .slice()
+      .sort((a,b)=> b.date.localeCompare(a.date))
+      .filter(tx=> matchesFilters(tx, f))
+      .map(tx=>{
+        const cat = State.categories.find(c=>c.id===tx.categoryId);
+        const badge = `<span class="pill" style="border-color:${cat?.color || '#1f2937'}">${cat?.name || '—'}</span>`;
+        return `<tr data-id="${tx.id}">
+          <td><input type="checkbox" class="rowCheck" /></td>
+          <td>${tx.date}</td>
+          <td>${tx.type === 'income' ? 'Income' : 'Expense'}</td>
+          <td>${badge}</td>
+          <td>${tx.type==='expense' ? '-' : ''}${formatAmount(tx.amount)}</td>
+          <td>${tx.notes || ''}</td>
+          <td>
+            <button class="btn" data-act="edit">Edit</button>
+            <button class="btn" data-act="del">Delete</button>
+          </td>
+        </tr>`;
+      }).join('');
+    els.tbody.innerHTML = rows || `<tr><td colspan="7" class="muted">No transactions yet.</td></tr>`;
+  }
+
+  els.tbody.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    const tr = e.target.closest('tr');
+    const id = tr.dataset.id;
+    const tx = State.transactions.find(t=>t.id===id);
+    if(btn.dataset.act==='del'){
+      if(confirm('Delete this transaction?')){
+        State.transactions = State.transactions.filter(t=>t.id!==id);
+        save();
+        render();
+      }
+    } else if(btn.dataset.act==='edit'){
+      // load into form
+      els.notes.value = tx.notes || '';
+      els.amount.value = tx.amount;
+      els.date.value = tx.date;
+      els.chips.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+      els.chips.querySelector(`[data-type="${tx.type}"]`).classList.add('active');
+      refreshCategorySelects();
+      els.category.value = tx.categoryId;
+      // replace add with save
+      els.addBtn.textContent = 'Save Changes';
+      els.addBtn.onclick = function(){
+        const amount = parseFloat(els.amount.value||'0');
+        const categoryId = els.category.value;
+        const date = els.date.value||todayISO();
+        const notes = els.notes.value.trim();
+        if(!amount || amount<=0) return alert('Enter a valid amount');
+        tx.amount = amount; tx.categoryId = categoryId; tx.date = date; tx.notes = notes; tx.type = currentType();
+        save();
+        els.addBtn.textContent = 'Add';
+        els.addBtn.onclick = addTransaction;
+        clearForm(); render();
+      }
+    }
+  });
+
+  els.checkAll.addEventListener('change', ()=>{
+    document.querySelectorAll('.rowCheck').forEach(ch=> ch.checked = els.checkAll.checked);
+  });
+  document.getElementById('deleteSelected').addEventListener('click', ()=>{
+    const checks = Array.from(document.querySelectorAll('.rowCheck'));
+    const ids = checks.map((ch,i)=> ch.checked ? els.tbody.querySelectorAll('tr')[i].dataset.id : null).filter(Boolean);
+    if(!ids.length) return alert('Select rows to delete');
+    if(confirm(`Delete ${ids.length} selected transaction(s)?`)){
+      State.transactions = State.transactions.filter(t=> !ids.includes(t.id));
+      save(); render();
+    }
+  })
+
+  // -------- Budgets --------
+  function renderBudgets(){
+    const month = new Date().toISOString().slice(0,7); // YYYY-MM
+    const byCatSpent = {};
+    for(const tx of State.transactions){
+      if(tx.type==='expense' && tx.date.startsWith(month)){
+        byCatSpent[tx.categoryId] = (byCatSpent[tx.categoryId]||0)+tx.amount;
+      }
+    }
+    const html = State.categories.filter(c=>c.type==='expense').map(c=>{
+      const spent = byCatSpent[c.id]||0;
+      const budget = c.budget || 0;
+      const pct = budget ? Math.min(100, Math.round((spent/budget)*100)) : 0;
+      const warn = budget && spent>budget ? 'color:var(--danger); font-weight:700' : '';
+      return `<div style="margin:10px 0">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <div style="display:flex; align-items:center; gap:10px">
+            <span class="pill" style="border-color:${c.color}">${c.name}</span>
+            <span class="muted">Budget:</span>
+            <input type="number" data-cat="${c.id}" class="budgetInput" value="${budget}" style="max-width:120px" />
+          </div>
+          <div style="${warn}">${formatAmount(spent)} / ${budget? formatAmount(budget) : '—'}</div>
+        </div>
+        <div class="progress"><span style="width:${pct}%"></span></div>
+      </div>`
+    }).join('');
+    els.budgets.innerHTML = html || '<div class="muted">No expense categories.</div>';
+
+    // bind
+    document.querySelectorAll('.budgetInput').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const cat = State.categories.find(c=>c.id===inp.dataset.cat);
+        cat.budget = Number(inp.value||0);
+        save(); renderBudgets();
+      })
+    });
+  }
+
+  // -------- KPIs & Charts --------
+  let catChart, flowChart;
+
+  function kpis(){
+    const month = new Date().toISOString().slice(0,7);
+    let income=0, expense=0, balance=0;
+    for(const tx of State.transactions){
+      if(tx.type==='income'){ income+=tx.amount; balance+=tx.amount }
+      else { expense+=tx.amount; balance-=tx.amount }
+    }
+    // month stats
+    let minc=0, mexp=0;
+    for(const tx of State.transactions){
+      if(!tx.date.startsWith(month)) continue;
+      if(tx.type==='income') minc+=tx.amount; else mexp+=tx.amount;
+    }
+    els.kpiBalance.textContent = formatAmount(balance);
+    els.kpiIncome.textContent = formatAmount(minc);
+    els.kpiExpense.textContent = formatAmount(mexp);
+    const sr = minc>0 ? Math.round((1 - (mexp/minc))*100) : 0;
+    els.kpiSR.textContent = `${Math.max(0,sr)}%`;
+  }
+
+  function buildCatChart(){
+    const month = new Date().toISOString().slice(0,7);
+    const byCat = {};
+    for(const tx of State.transactions){
+      if(tx.type==='expense' && tx.date.startsWith(month)){
+        byCat[tx.categoryId] = (byCat[tx.categoryId]||0) + tx.amount;
+      }
+    }
+    const labels = [], data = [], bg = [];
+    for(const c of State.categories.filter(c=>c.type==='expense')){
+      const v = byCat[c.id]||0; if(v<=0) continue;
+      labels.push(c.name); data.push(v); bg.push(c.color);
+    }
+    if(catChart) catChart.destroy();
+    catChart = new Chart(els.catChart, {
+      type:'doughnut',
+      data:{ labels, datasets:[{ data, backgroundColor: bg }] },
+      options:{ plugins:{ legend: { labels: { color:'#cbd5e1' } } } }
+    });
+  }
+
+  function buildFlowChart(){
+    // monthly net flow by date (current month)
+    const now = new Date();
+    const month = now.toISOString().slice(0,7);
+    const days = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+    const labels = Array.from({length:days}, (_,i)=> String(i+1).padStart(2,'0'));
+    const income = Array(days).fill(0), expense = Array(days).fill(0);
+    for(const tx of State.transactions){
+      if(!tx.date.startsWith(month)) continue;
+      const d = Number(tx.date.slice(8,10));
+      if(tx.type==='income') income[d-1]+=tx.amount; else expense[d-1]+=tx.amount;
+    }
+    if(flowChart) flowChart.destroy();
+    flowChart = new Chart(els.flowChart, {
+      type:'line',
+      data:{ labels, datasets:[
+        { label:'Income', data:income },
+        { label:'Expense', data:expense },
+      ] },
+      options:{ responsive:true, plugins:{ legend:{ labels:{ color:'#cbd5e1' } } }, scales:{ x:{ ticks:{ color:'#94a3b8' } }, y:{ ticks:{ color:'#94a3b8' } } } }
+    })
+  }
+
+  // -------- CSV Import/Export --------
+  function toCSV(){
+    const header = 'id,type,categoryId,amount,date,notes';
+    const rows = State.transactions.map(t=> [t.id, t.type, t.categoryId, t.amount, t.date, (t.notes||'').replace(/,/g,';')].join(','));
+    return [header, ...rows].join('\n');
+  }
+  function download(filename, text){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], {type:'text/csv'}));
+    a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+  }
+  document.getElementById('exportCsv').addEventListener('click', ()=> download('transactions.csv', toCSV()));
+
+  document.getElementById('importCsvInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const lines = reader.result.split(/\r?\n/).filter(Boolean);
+      const header = lines.shift();
+      const cols = header.split(',');
+      const required = ['id','type','categoryId','amount','date','notes'];
+      const ok = required.every((k,i)=> cols[i]===k);
+      if(!ok) return alert('CSV header mismatch. Expected: ' + required.join(','));
+      let count=0;
+      for(const line of lines){
+        const [id, type, categoryId, amount, date, notes] = line.split(',');
+        if(!id || !type || !categoryId || !amount || !date) continue;
+        // if id exists, skip
+        if(State.transactions.some(t=>t.id===id)) continue;
+        State.transactions.push({ id, type, categoryId, amount:Number(amount), date, notes: (notes||'').replace(/;/g, ',') });
+        count++;
+      }
+      save(); render(); alert(`Imported ${count} transactions`);
+      document.getElementById('importCsvInput').value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  // -------- Reset --------
+  document.getElementById('resetAll').addEventListener('click', ()=>{
+    if(!confirm('This will clear all data and restore defaults. Continue?')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    load(); render();
+  });
+
+  // -------- Render --------
+  function render(){
+    refreshCategorySelects();
+    renderTable();
+    renderBudgets();
+    kpis();
+    buildCatChart();
+    buildFlowChart();
+  }
+
+  // -------- Init main app (called after auth) --------
+  function initApp(){
+    load(); applyTheme();
+    document.getElementById('date').value = todayISO();
+    render();
+  }
+
+  // expose initApp for auth flow to call (already used above)
+  </script>
+</body>
+</html>
